@@ -98,8 +98,18 @@ Why this is a *different optimization problem* than the CVRP:
   a lateral 8.
 
 The output restoration curve shows the classic storm shape: a flat first
-hour (crews driving/repairing trunks, nobody restored), a huge jump when
+hour (crews driving/repairing trunks, nobody restored), a huge drop when
 the backbone energizes, then a long tail of small lateral jobs.
+
+Outputs (all static PNGs render directly on GitHub):
+
+| File | Shows |
+|------|-------|
+| `output/04a_grid_raw.png` | The mock grid: 4 substations, colored feeder backbones, gray laterals |
+| `output/04b_grid_outages.png` | Storm damage: X marks sized by customers restored when fixed |
+| `output/04c_restoration_plan.png` | Crew assignments: jobs colored by crew, numbered by repair order |
+| `output/04_restoration_curve.png` | Customers without power vs. time (shaded area = CMI) |
+| `output/04_grid_map.html` | Interactive version (open locally in a browser) |
 
 ### Scaling to the real thing: 2,000 crews, 25,000 outages, all of CT
 

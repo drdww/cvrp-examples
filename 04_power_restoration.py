@@ -64,7 +64,7 @@ NUM_SUBSTATIONS = 4
 NUM_DAMAGES = 40
 NUM_CREWS = 8
 DEPOT_LATLON = (41.7896, -72.6747)   # mock utility service center
-BACKBONE_THRESHOLD = 800             # downstream customers => feeder trunk
+BACKBONE_THRESHOLD = 250             # downstream customers => feeder trunk
 REPAIR_BACKBONE_S = 90 * 60          # 90 min: broken pole / 3-phase span
 REPAIR_LATERAL_S = 45 * 60           # 45 min: fuse / single-phase span
 SHIFT_HORIZON_S = 24 * 3600
@@ -308,23 +308,122 @@ def restoration_curve(energized, weight, filename):
     events = sorted((t, weight[d]) for d, t in energized.items() if weight[d])
     total_out = sum(w for _, w in events)
     times = [0] + [t / 3600 for t, _ in events]
-    restored = [0]
+    without_power = [total_out]
     for _, w in events:
-        restored.append(restored[-1] + w)
+        without_power.append(without_power[-1] - w)
     cmi = sum(t / 60 * w for t, w in events)  # customer-minutes
 
+    # Utility convention: customers WITHOUT power, decaying to zero.
+    # The shaded area under this curve IS the CMI.
     fig, ax = plt.subplots(figsize=(9, 5))
-    ax.step(times, restored, where="post", lw=2, color="tab:green")
-    ax.fill_between(times, restored, step="post", alpha=0.15, color="tab:green")
-    ax.axhline(total_out, ls="--", c="gray", lw=1)
+    ax.step(times, without_power, where="post", lw=2, color="tab:red")
+    ax.fill_between(times, without_power, step="post", alpha=0.15,
+                    color="tab:red", label="area = CMI")
     ax.set_xlabel("hours since crews dispatched")
-    ax.set_ylabel("customers restored")
-    ax.set_title(f"Restoration curve — {total_out:,} customers out, "
+    ax.set_ylabel("customers without power")
+    ax.set_ylim(bottom=0)
+    ax.set_title(f"Outage curve — {total_out:,} customers out at t=0, "
                  f"CMI = {cmi/1e3:,.0f}k customer-minutes")
+    ax.legend(loc="upper right")
     fig.tight_layout()
     fig.savefig(filename, dpi=130)
     print(f"Saved restoration curve -> {filename}")
     return cmi, total_out
+
+
+SUB_COLORS_MPL = ["tab:blue", "tab:green", "tab:red", "tab:purple"]
+CREW_COLORS_MPL = ["red", "blue", "green", "orange", "magenta",
+                   "teal", "black", "saddlebrown"]
+
+
+def render_grid_png(G, Gu, substations, parent, root, edge_class, filename,
+                    title, damaged=None, weight=None, crews=None,
+                    depot_node=None):
+    """Static map of the mock grid. Three flavors:
+    - raw grid (substations + backbone + laterals)
+    - + storm damage (X marks sized by customers restored when fixed)
+    - + crew assignment (damage colored by assigned crew)
+    """
+    from matplotlib.collections import LineCollection
+    from matplotlib.lines import Line2D
+
+    fig, ax = ox.plot_graph(G, show=False, close=False, node_size=0,
+                            edge_color="#eeeeee", edge_linewidth=0.3,
+                            bgcolor="white", figsize=(11, 11))
+
+    sub_idx = {s: k for k, s in enumerate(substations)}
+    lateral_segs, backbone_segs, backbone_cols = [], [], []
+    for n, p in parent.items():
+        if p is None:
+            continue
+        seg = [(Gu.nodes[p]["x"], Gu.nodes[p]["y"]),
+               (Gu.nodes[n]["x"], Gu.nodes[n]["y"])]
+        if edge_class[n] == "backbone":
+            backbone_segs.append(seg)
+            backbone_cols.append(SUB_COLORS_MPL[sub_idx[root[n]] % 4])
+        else:
+            lateral_segs.append(seg)
+    ax.add_collection(LineCollection(lateral_segs, colors="#aaaaaa",
+                                     linewidths=0.7, alpha=0.6, zorder=2))
+    ax.add_collection(LineCollection(backbone_segs, colors=backbone_cols,
+                                     linewidths=2.8, alpha=0.95, zorder=3))
+
+    for k, s in enumerate(substations):
+        ax.scatter(Gu.nodes[s]["x"], Gu.nodes[s]["y"], marker="*", s=600,
+                   c=SUB_COLORS_MPL[k % 4], edgecolors="black",
+                   linewidths=1.2, zorder=6)
+
+    legend = [
+        Line2D([], [], color="#888888", lw=1, label="lateral"),
+        Line2D([], [], color="tab:blue", lw=3, label="feeder backbone"),
+        Line2D([], [], marker="*", ls="", ms=18, markerfacecolor="tab:blue",
+               markeredgecolor="black", label="substation"),
+    ]
+
+    if damaged is not None and crews is None:
+        # X marks, sized by the customers that come back when it's fixed
+        xs = [Gu.nodes[d]["x"] for d in damaged]
+        ys = [Gu.nodes[d]["y"] for d in damaged]
+        sizes = [40 + 0.5 * weight[d] for d in damaged]
+        ax.scatter(xs, ys, marker="X", s=sizes, c="black",
+                   edgecolors="yellow", linewidths=0.8, zorder=7)
+        legend.append(Line2D([], [], marker="X", ls="", ms=12,
+                             markerfacecolor="black",
+                             markeredgecolor="yellow",
+                             label="damaged span (size = customers)"))
+
+    if crews is not None:
+        for v, seq in enumerate(crews):
+            xs = [Gu.nodes[d]["x"] for d in seq]
+            ys = [Gu.nodes[d]["y"] for d in seq]
+            ax.scatter(xs, ys, marker="o",
+                       s=[60 + 0.4 * weight[d] for d in seq],
+                       c=CREW_COLORS_MPL[v % 8], edgecolors="white",
+                       linewidths=0.8, zorder=7)
+            for order, d in enumerate(seq, start=1):
+                ax.annotate(str(order),
+                            (Gu.nodes[d]["x"], Gu.nodes[d]["y"]),
+                            fontsize=6, ha="center", va="center",
+                            color="white", zorder=8)
+        legend.append(Line2D([], [], marker="o", ls="", ms=10,
+                             markerfacecolor="gray",
+                             markeredgecolor="white",
+                             label="repair job (color = crew, # = order)"))
+
+    if depot_node is not None:
+        ax.scatter(G.nodes[depot_node]["x"], G.nodes[depot_node]["y"],
+                   marker="s", s=200, c="dimgray", edgecolors="black",
+                   zorder=6)
+        legend.append(Line2D([], [], marker="s", ls="", ms=12,
+                             markerfacecolor="dimgray",
+                             markeredgecolor="black",
+                             label="crew depot"))
+
+    ax.set_title(title)
+    ax.legend(handles=legend, loc="lower left", fontsize=9)
+    fig.savefig(filename, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved -> {filename}")
 
 
 def render_map(G, Gu, substations, parent, edge_class, damaged, weight,
@@ -385,8 +484,23 @@ def main():
     G = load_graph()
     Gu, substations, parent, root, customers, downstream, edge_class = \
         build_grid(G, rng)
+
+    render_grid_png(
+        G, Gu, substations, parent, root, edge_class,
+        "output/04a_grid_raw.png",
+        "Mock distribution grid over Hartford roads — 4 substations, "
+        "feeder backbones, laterals")
+
     damaged, weight, precedence = generate_damage(parent, edge_class,
                                                   customers, rng)
+
+    render_grid_png(
+        G, Gu, substations, parent, root, edge_class,
+        "output/04b_grid_outages.png",
+        f"Storm damage — {NUM_DAMAGES} broken spans, "
+        f"{sum(weight.values()):,} customers without power",
+        damaged=damaged, weight=weight)
+
     road_nodes, crews, completion, depot_node = solve_restoration(
         G, damaged, weight, precedence, edge_class)
 
@@ -406,6 +520,13 @@ def main():
     print(f"\nAll {total_out:,} customers restored by t = {last:.1f} h")
     print(f"CMI = {cmi:,.0f} customer-minutes "
           f"(equiv. SAIDI contribution: {cmi/total_out:.0f} min/customer)")
+
+    render_grid_png(
+        G, Gu, substations, parent, root, edge_class,
+        "output/04c_restoration_plan.png",
+        f"Restoration plan — {NUM_CREWS} crews, all customers back in "
+        f"{last:.1f} h",
+        damaged=damaged, weight=weight, crews=crews, depot_node=depot_node)
 
     render_map(G, Gu, substations, parent, edge_class, damaged, weight,
                crews, energized, depot_node, "output/04_grid_map.html")
