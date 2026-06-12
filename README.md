@@ -18,6 +18,7 @@ pip install ortools osmnx folium matplotlib scipy
 | 3 | `03_hartford_road_network.py` | 100 stops, 10 trucks | **Real Hartford streets** from OpenStreetMap, asymmetric travel-time matrix, shift-length limits, route balancing, interactive map |
 | 4 | `04_power_restoration.py` | 100 outages, 10 crews | **Mock power grid** over the road network: substations, feeder backbones, laterals; customer-weighted restoration objective (CMI/SAIDI) with upstream-before-downstream precedence |
 | 5 | `05_dynamic_dispatch.py` | 24 outages, 5 crews | **Uncertainty**: only 40% of damage known at t=0, lognormal repair times; races static vs. greedy vs. rolling-horizon dispatch on the same realized storm |
+| 6 | `06_fairfield_data_prep.py` | 5,000 outages, 100 crews | **Sandy scale, part 1 (data prep)**: all of Fairfield County's roads, 20 substations placed by clustering, typed outages (fuse/tree/wire/transformer/pole) with repair-time distributions, per-region decomposition labels — no travel matrix on purpose |
 
 Run them in order:
 
@@ -152,6 +153,32 @@ fleet size, heterogeneity, and coupling. That nuance is the lesson.
 
 Output: `output/05_policy_comparison.png` — three outage curves on one
 axis.
+
+## Example 6: Sandy scale — Fairfield County (part 1: data prep)
+
+100 crews, 5,000 outages, 31,010 intersections of real Fairfield County
+roads. At this scale the data layer is the hard part, so it gets its own
+script — the solver stage (part 2) consumes the saved instance.
+
+- **20 substations** placed by k-means over all intersections (substation
+  density follows road/population density), snapped to road nodes.
+- **Typed outages** with their own repair-time distributions: fuse
+  (0.75 h), tree on wire (1.5 h), wire down (3 h), transformer (3.5 h),
+  broken pole (8 h); backbone damage skews toward wire/pole, laterals
+  toward fuses. True times are lognormal around the means the planner
+  sees.
+- **The storm**: 224,111 of 230,725 customers out (97%), and 4,827 of
+  5,000 repairs blocked behind upstream damage — at Sandy damage density
+  the precedence structure dominates everything. Total workload:
+  11,751 crew-hours, ~118 h (5 days) per crew before travel.
+- **Deliberately missing**: the travel matrix. 5,000² = 25M pairs. Each
+  outage carries its substation-region label instead, so part 2 builds
+  ~20 small matrices and solves region-by-region — the [SCALING.md](SCALING.md)
+  decomposition made concrete.
+
+Outputs: `output/06a_fairfield_grid.png` (the grid),
+`output/06b_fairfield_outages.png` (the storm),
+`cache/fairfield_instance.pkl` (solver-ready instance, 1.5 MB).
 
 ## Roadmap: beyond OR-Tools
 
