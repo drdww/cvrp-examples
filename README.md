@@ -16,6 +16,7 @@ pip install ortools osmnx folium matplotlib scipy
 | 1 | `01_basic_cvrp.py` | 16 stops, 4 trucks | The core OR-Tools machinery: index manager, transit callback, capacity dimension |
 | 2 | `02_cvrp_random_city.py` | 60 stops, 6 trucks | Real units, drop penalties (disjunctions), and the construction-heuristic vs. Guided Local Search comparison |
 | 3 | `03_hartford_road_network.py` | 100 stops, 10 trucks | **Real Hartford streets** from OpenStreetMap, asymmetric travel-time matrix, shift-length limits, route balancing, interactive map |
+| 4 | `04_power_restoration.py` | 40 outages, 8 crews | **Mock power grid** over the road network: substations, feeder backbones, laterals; customer-weighted restoration objective (CMI/SAIDI) with upstream-before-downstream precedence |
 
 Run them in order:
 
@@ -23,6 +24,7 @@ Run them in order:
 python 01_basic_cvrp.py
 python 02_cvrp_random_city.py
 python 03_hartford_road_network.py   # first run downloads OSM data (~1 min), then cached
+python 04_power_restoration.py       # reuses the cached road network
 ```
 
 Example 3 writes `output/03_hartford_routes.html` — open it in a browser and
@@ -66,6 +68,55 @@ into a node-routing problem** (each required edge becomes a pair of nodes)
 and then feed it to OR-Tools — that's a great "advanced" lecture. The
 examples here model the equally real *node* version: debris pickup sites,
 salt-pile drops, inspection points, deliveries.
+
+## Example 4: roads as a scaffold for a power grid
+
+Overhead distribution lines are strung on poles along roads, so the street
+graph is a legitimate scaffold for a mock grid:
+
+1. **Substations**: 4 nodes placed at quadrant centers of the city.
+2. **Radial feeders**: a shortest-path forest grown from the substations —
+   every pole is fed by its nearest substation along the streets. Radial
+   topology (power flows one way) falls out automatically.
+3. **Backbone vs. lateral**: tree spans serving ≥ 800 downstream customers
+   are the feeder trunk (three-phase backbone); the rest are laterals
+   (single-phase neighborhood taps).
+4. **Storm damage**: 40 broken spans (~15% on the backbone, where storms
+   disproportionately hit long spans on tree-lined arterials).
+
+Why this is a *different optimization problem* than the CVRP:
+
+- **Objective**: utilities don't minimize miles — they minimize
+  **customer-minutes of interruption** (CMI; SAIDI is CMI ÷ customers).
+  Implemented via OR-Tools' `SetCumulVarSoftUpperBound(node, 0, customers)`
+  trick, turning the VRP into a *weighted minimum-latency problem*.
+- **Precedence**: fixing a lateral restores nobody while its upstream
+  feeder is broken. Cross-crew precedence constraints on the shared Time
+  dimension enforce upstream-before-downstream.
+- **Weights**: each damage is credited with the customers whose *nearest
+  upstream* damage it is — one feeder span can be worth 1,200 customers,
+  a lateral 8.
+
+The output restoration curve shows the classic storm shape: a flat first
+hour (crews driving/repairing trunks, nobody restored), a huge jump when
+the backbone energizes, then a long tail of small lateral jobs.
+
+### Scaling to the real thing: 2,000 crews, 25,000 outages, all of CT
+
+The toy model decomposes almost perfectly along the grid's own hierarchy:
+
+1. **Damage assessment first** — you can't optimize what you haven't
+   scouted; assessment itself is a routing problem (often drones/scouts).
+2. **Decompose by substation/feeder region**: outages on different feeders
+   share no precedence constraints, so each region is an independent
+   sub-problem. 25,000 outages become ~200 problems of ~125 outages.
+3. **Assign crews to regions** (a transportation/assignment LP weighted by
+   customers out), then solve each region's weighted-latency VRP as here.
+4. **Rolling horizon**: re-solve every 1–2 hours as new damage reports
+   arrive, crews finish early/late, and mutual-aid crews show up. Nobody
+   solves a 25,000-stop problem once; they solve many small ones often.
+5. At that scale you'd swap OR-Tools for PyVRP/LKH per region and a CP-SAT
+   or MILP master problem for crew-to-region assignment.
 
 ## Roadmap: beyond OR-Tools
 
@@ -117,6 +168,7 @@ subsample → QUBO on a 5-stop toy → discussion of where quantum could matter.
 01_basic_cvrp.py              # textbook 17-node CVRP
 02_cvrp_random_city.py        # 60 stops, GLS comparison, matplotlib plot
 03_hartford_road_network.py   # 100 stops on real Hartford streets
+04_power_restoration.py       # mock grid + storm restoration (CMI objective)
 cache/                        # OSM graph + travel-time matrix (auto-created)
 output/                       # plots and interactive maps
 ```
