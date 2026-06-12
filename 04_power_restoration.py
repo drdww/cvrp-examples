@@ -61,8 +61,8 @@ GRAPH_CACHE = "cache/hartford_drive.graphml"
 PLACE = "Hartford, Connecticut, USA"
 
 NUM_SUBSTATIONS = 4
-NUM_DAMAGES = 40
-NUM_CREWS = 8
+NUM_DAMAGES = 100
+NUM_CREWS = 10
 DEPOT_LATLON = (41.7896, -72.6747)   # mock utility service center
 BACKBONE_THRESHOLD = 250             # downstream customers => feeder trunk
 REPAIR_BACKBONE_S = 90 * 60          # 90 min: broken pole / 3-phase span

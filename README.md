@@ -16,7 +16,7 @@ pip install ortools osmnx folium matplotlib scipy
 | 1 | `01_basic_cvrp.py` | 16 stops, 4 trucks | The core OR-Tools machinery: index manager, transit callback, capacity dimension |
 | 2 | `02_cvrp_random_city.py` | 60 stops, 6 trucks | Real units, drop penalties (disjunctions), and the construction-heuristic vs. Guided Local Search comparison |
 | 3 | `03_hartford_road_network.py` | 100 stops, 10 trucks | **Real Hartford streets** from OpenStreetMap, asymmetric travel-time matrix, shift-length limits, route balancing, interactive map |
-| 4 | `04_power_restoration.py` | 40 outages, 8 crews | **Mock power grid** over the road network: substations, feeder backbones, laterals; customer-weighted restoration objective (CMI/SAIDI) with upstream-before-downstream precedence |
+| 4 | `04_power_restoration.py` | 100 outages, 10 crews | **Mock power grid** over the road network: substations, feeder backbones, laterals; customer-weighted restoration objective (CMI/SAIDI) with upstream-before-downstream precedence |
 | 5 | `05_dynamic_dispatch.py` | 24 outages, 5 crews | **Uncertainty**: only 40% of damage known at t=0, lognormal repair times; races static vs. greedy vs. rolling-horizon dispatch on the same realized storm |
 
 Run them in order:
@@ -80,10 +80,10 @@ graph is a legitimate scaffold for a mock grid:
 2. **Radial feeders**: a shortest-path forest grown from the substations —
    every pole is fed by its nearest substation along the streets. Radial
    topology (power flows one way) falls out automatically.
-3. **Backbone vs. lateral**: tree spans serving ≥ 800 downstream customers
+3. **Backbone vs. lateral**: tree spans serving ≥ 250 downstream customers
    are the feeder trunk (three-phase backbone); the rest are laterals
    (single-phase neighborhood taps).
-4. **Storm damage**: 40 broken spans (~15% on the backbone, where storms
+4. **Storm damage**: 100 broken spans (~15% on the backbone, where storms
    disproportionately hit long spans on tree-lined arterials).
 
 Why this is a *different optimization problem* than the CVRP:
