@@ -1,0 +1,7 @@
+# Regenerable caches (OSM graph + travel-time matrix; rebuilt on first run)
+cache/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
