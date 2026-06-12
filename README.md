@@ -17,6 +17,7 @@ pip install ortools osmnx folium matplotlib scipy
 | 2 | `02_cvrp_random_city.py` | 60 stops, 6 trucks | Real units, drop penalties (disjunctions), and the construction-heuristic vs. Guided Local Search comparison |
 | 3 | `03_hartford_road_network.py` | 100 stops, 10 trucks | **Real Hartford streets** from OpenStreetMap, asymmetric travel-time matrix, shift-length limits, route balancing, interactive map |
 | 4 | `04_power_restoration.py` | 40 outages, 8 crews | **Mock power grid** over the road network: substations, feeder backbones, laterals; customer-weighted restoration objective (CMI/SAIDI) with upstream-before-downstream precedence |
+| 5 | `05_dynamic_dispatch.py` | 24 outages, 5 crews | **Uncertainty**: only 40% of damage known at t=0, lognormal repair times; races static vs. greedy vs. rolling-horizon dispatch on the same realized storm |
 
 Run them in order:
 
@@ -25,6 +26,7 @@ python 01_basic_cvrp.py
 python 02_cvrp_random_city.py
 python 03_hartford_road_network.py   # first run downloads OSM data (~1 min), then cached
 python 04_power_restoration.py       # reuses the cached road network
+python 05_dynamic_dispatch.py        # ~1 min; try `python 05_dynamic_dispatch.py 42` for another storm
 ```
 
 Example 3 writes `output/03_hartford_routes.html` — open it in a browser and
@@ -127,6 +129,29 @@ The toy model decomposes almost perfectly along the grid's own hierarchy:
    solves a 25,000-stop problem once; they solve many small ones often.
 5. At that scale you'd swap OR-Tools for PyVRP/LKH per region and a CP-SAT
    or MILP master problem for crew-to-region assignment.
+
+## Example 5: dispatch under uncertainty
+
+The experiment proposed in [SCALING.md](SCALING.md) §6. Same mock grid as
+Example 4, but now the planner doesn't know the problem: only 40% of
+damage is visible at t=0 (the rest is discovered over 3 hours of damage
+assessment), and true repair times are lognormal around the estimates.
+Three policies race on the same realized storm (common random numbers):
+
+- **(a) static** — solve once at t=0, follow the plan, take late
+  discoveries first-come-first-served. Consistently **14–26% worse CMI**
+  across seeds: the cost of ignoring current information.
+- **(b) greedy** — each freed crew takes the best customers-per-hour job.
+- **(c) rolling horizon** — each freed crew re-solves the weighted-latency
+  problem over all revealed unfinished jobs and takes the first step.
+
+Honest finding: greedy often *ties* rolling at this scale — with 5 crews
+and 24 jobs there is little for lookahead to exploit. The dominant value
+is *using current information at all*; re-optimization's edge grows with
+fleet size, heterogeneity, and coupling. That nuance is the lesson.
+
+Output: `output/05_policy_comparison.png` — three outage curves on one
+axis.
 
 ## Roadmap: beyond OR-Tools
 
