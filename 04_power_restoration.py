@@ -1,14 +1,14 @@
-"""
+﻿"""
 Example 4: Storm restoration on a mock power grid built from Hartford's roads
 ==============================================================================
 Roads vs. power lines, in one sentence: trucks can drive any path, but
-power flows ONE way — substation -> feeder (backbone) -> lateral ->
+power flows ONE way â€” substation -> feeder (backbone) -> lateral ->
 customer. That hierarchy changes the optimization problem completely.
 
 How we mock the grid (and why it's defensible):
   Overhead distribution lines are strung on poles ALONG roads, so the
   road graph is a realistic scaffold. We place 4 substations, then grow
-  a shortest-path forest over the street network — every intersection
+  a shortest-path forest over the street network â€” every intersection
   ("pole") is fed by its nearest substation along streets. That forest
   IS a radial distribution system:
     - BACKBONE (feeder trunk): tree edges whose downstream subtree
@@ -18,7 +18,7 @@ How we mock the grid (and why it's defensible):
 
 What changes vs. the CVRP in Example 3:
   1. OBJECTIVE: not total distance. Utilities minimize CUSTOMER-MINUTES
-     of interruption (CMI, the integral under the outage curve — SAIDI
+     of interruption (CMI, the integral under the outage curve â€” SAIDI
      is CMI / customers served). Implemented with OR-Tools' soft upper
      bound trick: penalize each damage node's arrival time multiplied
      by the customers it restores => a weighted minimum-latency VRP.
@@ -29,16 +29,16 @@ What changes vs. the CVRP in Example 3:
      parallel and energize later; modeling that exactly is a
      post-processing step (we do compute true energization times).
   3. WEIGHTS: each damage is credited with the customers whose NEAREST
-     upstream damage it is — fix the feeder break and 2,000 come back;
+     upstream damage it is â€” fix the feeder break and 2,000 come back;
      fix a lateral and 40 come back.
 
 Outputs:
   output/04_grid_map.html          interactive map: substations, backbone,
                                    laterals, damage sites colored by crew
-  output/04_restoration_curve.png  customers restored vs. time (the curve
+  output/04_outage_curve.png  customers restored vs. time (the curve
                                    utilities publish during storms)
 
-Scaling note (the real goal — 2,000 crews / 25,000 outages across CT):
+Scaling note (the real goal â€” 2,000 crews / 25,000 outages across CT):
   this exact model decomposes naturally by substation/feeder: assign
   crews to regions, solve each region as below, re-optimize on a rolling
   horizon as damage assessment trickles in. See README.
@@ -198,7 +198,7 @@ def generate_damage(parent, edge_class, customers, rng):
 
 
 # ----------------------------------------------------------------------
-# Step 4: crew routing — weighted-latency VRP with precedence
+# Step 4: crew routing â€” weighted-latency VRP with precedence
 # ----------------------------------------------------------------------
 def travel_matrix(G, road_nodes):
     n = len(road_nodes)
@@ -322,7 +322,7 @@ def restoration_curve(energized, weight, filename):
     ax.set_xlabel("hours since crews dispatched")
     ax.set_ylabel("customers without power")
     ax.set_ylim(bottom=0)
-    ax.set_title(f"Outage curve — {total_out:,} customers out at t=0, "
+    ax.set_title(f"Outage curve â€” {total_out:,} customers out at t=0, "
                  f"CMI = {cmi/1e3:,.0f}k customer-minutes")
     ax.legend(loc="upper right")
     fig.tight_layout()
@@ -488,7 +488,7 @@ def main():
     render_grid_png(
         G, Gu, substations, parent, root, edge_class,
         "output/04a_grid_raw.png",
-        "Mock distribution grid over Hartford roads — 4 substations, "
+        "Mock distribution grid over Hartford roads â€” 4 substations, "
         "feeder backbones, laterals")
 
     damaged, weight, precedence = generate_damage(parent, edge_class,
@@ -497,7 +497,7 @@ def main():
     render_grid_png(
         G, Gu, substations, parent, root, edge_class,
         "output/04b_grid_outages.png",
-        f"Storm damage — {NUM_DAMAGES} broken spans, "
+        f"Storm damage â€” {NUM_DAMAGES} broken spans, "
         f"{sum(weight.values()):,} customers without power",
         damaged=damaged, weight=weight)
 
@@ -515,7 +515,7 @@ def main():
         print(f"Crew {v}: {len(seq)} jobs -> {jobs}")
 
     cmi, total_out = restoration_curve(energized, weight,
-                                       "output/04_restoration_curve.png")
+                                       "output/04_outage_curve.png")
     last = max(energized.values()) / 3600
     print(f"\nAll {total_out:,} customers restored by t = {last:.1f} h")
     print(f"CMI = {cmi:,.0f} customer-minutes "
@@ -524,7 +524,7 @@ def main():
     render_grid_png(
         G, Gu, substations, parent, root, edge_class,
         "output/04c_restoration_plan.png",
-        f"Restoration plan — {NUM_CREWS} crews, all customers back in "
+        f"Restoration plan â€” {NUM_CREWS} crews, all customers back in "
         f"{last:.1f} h",
         damaged=damaged, weight=weight, crews=crews, depot_node=depot_node)
 
@@ -534,3 +534,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
